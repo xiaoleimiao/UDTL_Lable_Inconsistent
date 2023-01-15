@@ -332,7 +332,7 @@ class train_utils_open_univ(object):
                                             counters[each_label].Ncorrect += 1.0
                                     else:
                                         counters[-1].Ntotal += 1.0
-                                        if each_target_share_weight[0] > args.th:
+                                        if each_target_share_weight[0] < args.th:
                                             counters[-1].Ncorrect += 1.0
                         else:
                             pred = logits.argmax(dim=1)
@@ -370,54 +370,54 @@ class train_utils_open_univ(object):
                                 batch_loss = 0.0
                                 batch_count = 0
                             step += 1
-            if phase == 'target_val':
-                correct = [x.Ncorrect for x in counters]
-                amount = [x.Ntotal for x in counters]
-                common_acc = np.sum(correct[0:-1]) / np.sum(amount[0:-1])
-                outlier_acc = correct[-1] / amount[-1]
-                acc_tests = [x.reportAccuracy() for x in counters if not np.isnan(x.reportAccuracy())]
-                acc_class = torch.ones(1, 1) * np.mean(acc_tests)
-                acc_class = acc_class[0][0]
-                acc_all = np.sum(correct[0:]) / np.sum(amount[0:])
-                hscore = 2 * common_acc * outlier_acc / (common_acc + outlier_acc)
-                if args.inconsistent == "OSBP":
-                    epoch_loss = epoch_loss / epoch_length
-                    logging.info(
-                        'Epoch: {} {}-Loss: {:.4f} {}-common_acc: {:.4f} outlier_acc: {:.4f} acc_class: {:.4f} acc_all: {:.4f} hscore: {:.4f}, Cost {:.1f} sec'.format(
-                            epoch, phase, epoch_loss, phase, common_acc, outlier_acc, acc_class, acc_all, hscore, time.time() - epoch_start
-                        ))
+                if phase == 'target_val':
+                    correct = [x.Ncorrect for x in counters]
+                    amount = [x.Ntotal for x in counters]
+                    common_acc = np.sum(correct[0:-1]) / np.sum(amount[0:-1])
+                    outlier_acc = correct[-1] / amount[-1]
+                    acc_tests = [x.reportAccuracy() for x in counters if not np.isnan(x.reportAccuracy())]
+                    acc_class = torch.ones(1, 1) * np.mean(acc_tests)
+                    acc_class = acc_class[0][0]
+                    acc_all = np.sum(correct[0:]) / np.sum(amount[0:])
+                    hscore = 2 * common_acc * outlier_acc / (common_acc + outlier_acc)
+                    if args.inconsistent == "OSBP":
+                        epoch_loss = epoch_loss / epoch_length
+                        logging.info(
+                            'Epoch: {} {}-Loss: {:.4f} {}-common_acc: {:.4f} outlier_acc: {:.4f} acc_class: {:.4f} acc_all: {:.4f} hscore: {:.4f}, Cost {:.1f} sec'.format(
+                                epoch, phase, epoch_loss, phase, common_acc, outlier_acc, acc_class, acc_all, hscore, time.time() - epoch_start
+                            ))
+                    else:
+                        logging.info(
+                            'Epoch: {} {}-common_acc: {:.4f} outlier_acc: {:.4f} acc_class: {:.4f} acc_all: {:.4f} hscore: {:.4f}, Cost {:.1f} sec'.format(
+                                epoch, phase, common_acc, outlier_acc, acc_class, acc_all, hscore, time.time() - epoch_start
+                            ))
+                    # save the checkpoint for other learning
+                    model_state_dic = self.model_all.state_dict()
+                    # save the best model according to the val accuracy
+
+                    if hscore > best_hscore:
+                        best_hscore = hscore
+                        logging.info(
+                    "save best model_hscore epoch {}, common_acc: {:.4f} outlier_acc: {:.4f} acc_class: {:.4f} acc_all: {:.4f} best_hscore: {:.4f},".format(
+                                epoch, common_acc, outlier_acc, acc_class, acc_all, best_hscore))
+                        torch.save(model_state_dic, os.path.join(self.save_dir,
+                                                                 '{}-{:.4f}-{:.4f}-{:.4f}-{:.4f}-{:.4f}.pth'.format(
+                                                                     epoch, common_acc, outlier_acc,acc_class, acc_all,best_hscore)))
+                    if epoch > args.max_epoch - 2:
+                        logging.info(
+                    "save last model epoch {}, common_acc: {:.4f} outlier_acc: {:.4f} acc_class: {:.4f} acc_all: {:.4f} hscore: {:.4f}".format(
+                                epoch, common_acc, outlier_acc, acc_class, acc_all, hscore))
+                        torch.save(model_state_dic, os.path.join(self.save_dir,
+                                                                 '{}-{:.4f}-{:.4f}-{:.4f}-{:.4f}-{:.4f}.pth'.format(
+                                                                     epoch, common_acc, outlier_acc,acc_class, acc_all,hscore)))
+                    # Print the train and val information via each epoch
                 else:
-                    logging.info(
-                        'Epoch: {} {}-common_acc: {:.4f} outlier_acc: {:.4f} acc_class: {:.4f} acc_all: {:.4f} hscore: {:.4f}, Cost {:.1f} sec'.format(
-                            epoch, phase, common_acc, outlier_acc, acc_class, acc_all, hscore, time.time() - epoch_start
-                        ))
-                # save the checkpoint for other learning
-                model_state_dic = self.model_all.state_dict()
-                # save the best model according to the val accuracy
+                    epoch_loss = epoch_loss / epoch_length
+                    epoch_acc = epoch_acc / epoch_length
 
-                if hscore > best_hscore:
-                    best_hscore = hscore
-                    logging.info(
-                "save best model_hscore epoch {}, common_acc: {:.4f} outlier_acc: {:.4f} acc_class: {:.4f} acc_all: {:.4f} best_hscore: {:.4f},".format(
-                            epoch, common_acc, outlier_acc, acc_class, acc_all, best_hscore))
-                    torch.save(model_state_dic, os.path.join(self.save_dir,
-                                                             '{}-{:.4f}-{:.4f}-{:.4f}-{:.4f}-{:.4f}.pth'.format(
-                                                                 epoch, common_acc, outlier_acc,acc_class, acc_all,best_hscore)))
-                if epoch > args.max_epoch - 2:
-                    logging.info(
-                "save last model epoch {}, common_acc: {:.4f} outlier_acc: {:.4f} acc_class: {:.4f} acc_all: {:.4f} hscore: {:.4f}".format(
-                            epoch, common_acc, outlier_acc, acc_class, acc_all, hscore))
-                    torch.save(model_state_dic, os.path.join(self.save_dir,
-                                                             '{}-{:.4f}-{:.4f}-{:.4f}-{:.4f}-{:.4f}.pth'.format(
-                                                                 epoch, common_acc, outlier_acc,acc_class, acc_all,hscore)))
-                # Print the train and val information via each epoch
-            else:
-                epoch_loss = epoch_loss / epoch_length
-                epoch_acc = epoch_acc / epoch_length
-
-                logging.info('Epoch: {} {}-Loss: {:.4f} {}-Acc: {:.4f}, Cost {:.1f} sec'.format(
-                    epoch, phase, epoch_loss, phase, epoch_acc, time.time() - epoch_start
-                ))
+                    logging.info('Epoch: {} {}-Loss: {:.4f} {}-Acc: {:.4f}, Cost {:.1f} sec'.format(
+                        epoch, phase, epoch_loss, phase, epoch_acc, time.time() - epoch_start
+                    ))
 
             if self.lr_scheduler is not None:
                 self.lr_scheduler.step()
