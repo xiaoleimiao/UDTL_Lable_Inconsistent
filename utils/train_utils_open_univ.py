@@ -270,17 +270,22 @@ class train_utils_open_univ(object):
                                                                                                                     args.th] * args.batch_size).to(
                                                                                                        self.device))  # th为阈值
                             else:
-                                domain_prob_source = self.AdversarialNet_auxiliary.forward(
+                                domain_prob_source = self.AdversarialNet.forward(
+                                    features.narrow(0, 0, labels.size(0)))
+                                domain_prob_target = self.AdversarialNet.forward(
+                                    features.narrow(0, labels.size(0), inputs.size(0) - labels.size(0)))
+
+                                domain_prob_source_auxiliary = self.AdversarialNet_auxiliary.forward(
                                     features.narrow(0, 0, labels.size(0)).detach())
-                                domain_prob_target = self.AdversarialNet_auxiliary.forward(
+                                domain_prob_target_auxiliary = self.AdversarialNet_auxiliary.forward(
                                     features.narrow(0, labels.size(0), inputs.size(0) - labels.size(0)).detach())
 
                                 source_share_weight = get_source_share_weight(
-                                    domain_prob_source, outputs.narrow(0, 0, labels.size(0)), domain_temperature=1.0,
+                                    domain_prob_source_auxiliary, outputs.narrow(0, 0, labels.size(0)), domain_temperature=1.0,
                                     class_temperature=10.0)
                                 source_share_weight = normalize_weight(source_share_weight)
                                 target_share_weight = get_target_share_weight(
-                                    domain_prob_target,
+                                    domain_prob_target_auxiliary,
                                     outputs.narrow(0, labels.size(0), inputs.size(0) - labels.size(0)),
                                     domain_temperature=1.0,
                                     class_temperature=1.0)
@@ -298,12 +303,12 @@ class train_utils_open_univ(object):
                                     torch.zeros_like(domain_prob_target))
                                 adv_loss += torch.mean(tmp, dim=0, keepdim=True)
 
-                                adv_loss_auxiliary += nn.BCELoss()(domain_prob_source,
+                                adv_loss_auxiliary += nn.BCELoss()(domain_prob_source_auxiliary,
                                                                    torch.ones_like(
-                                                                       domain_prob_source))
-                                adv_loss_auxiliary += nn.BCELoss()(domain_prob_target,
+                                                                       domain_prob_source_auxiliary))
+                                adv_loss_auxiliary += nn.BCELoss()(domain_prob_target_auxiliary,
                                                                    torch.zeros_like(
-                                                                       domain_prob_target))
+                                                                       domain_prob_target_auxiliary))
                                 inconsistent_loss = adv_loss + adv_loss_auxiliary
                             loss = classifier_loss + inconsistent_loss
 
